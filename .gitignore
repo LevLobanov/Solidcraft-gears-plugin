@@ -1,0 +1,4 @@
+/target
+plugin_system_docs
+custom-gears.zip
+.github/workflows/release.yaml

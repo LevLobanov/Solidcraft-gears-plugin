@@ -1,0 +1,76 @@
+{
+  "id": "custom-gears",
+  "name": "Gear Generator",
+  "version": "0.3.0",
+  "description": "Generates 2D or 3D Standard and Involute Spur gears at a selected point, face, plane, or origin.",
+  "capabilities": ["commands@0.1"],
+  "runtime": {
+    "module": "plugin.wasm",
+    "entries": [
+      {
+        "name": "standard-gear",
+        "effect": "edit",
+        "slots": [
+          { "kind": "menu", "name": "Standard gear" }
+        ],
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "teeth": { "type": "integer", "title": "Teeth (Z)", "default": 20, "minimum": 4, "maximum": 200 },
+            "module_mm": { "type": "number", "title": "Module (m, mm)", "default": 2.0, "minimum": 0.1 },
+            "extrude": { "type": "boolean", "title": "Extrude to 3D", "default": true },
+            "thickness_mm": { "type": "number", "title": "Thickness (mm)", "default": 10.0, "minimum": 0.1 },
+            "bore_diameter_mm": { "type": "number", "title": "Bore Diameter (mm)", "default": 8.0, "minimum": 0.0 },
+            "force_origin": { "type": "boolean", "title": "Build at Origin (ignore selection)", "default": false },
+            "fallback_plane": { "type": "string", "title": "Default Plane", "default": "XY", "enum": ["XY", "XZ", "YZ"] },
+            "offset_x_mm": { "type": "number", "title": "Offset X (mm)", "default": 0.0 },
+            "offset_y_mm": { "type": "number", "title": "Offset Y (mm)", "default": 0.0 },
+            "offset_z_mm": { "type": "number", "title": "Offset Z (mm)", "default": 0.0 }
+          },
+          "required": ["teeth", "module_mm"]
+        }
+      },
+      {
+        "name": "spur-gear",
+        "effect": "edit",
+        "slots": [
+          { "kind": "menu", "name": "Spur gear" }
+        ],
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "teeth": { "type": "integer", "title": "Teeth (Z)", "default": 24, "minimum": 6, "maximum": 200 },
+            "module_mm": { "type": "number", "title": "Module (m, mm)", "default": 2.0, "minimum": 0.1 },
+            "pressure_angle_deg": { "type": "number", "title": "Pressure Angle (deg)", "default": 20.0, "minimum": 10.0, "maximum": 35.0 },
+            "extrude": { "type": "boolean", "title": "Extrude to 3D", "default": true },
+            "thickness_mm": { "type": "number", "title": "Thickness (mm)", "default": 10.0, "minimum": 0.1 },
+            "bore_diameter_mm": { "type": "number", "title": "Bore Diameter (mm)", "default": 8.0, "minimum": 0.0 },
+            "backlash_mm": { "type": "number", "title": "Backlash (mm)", "default": 0.05, "minimum": 0.0 },
+            "precision": { "type": "string", "title": "Tooth Curve Precision", "default": "medium", "enum": ["low", "medium", "high", "ultra"] },
+            "force_origin": { "type": "boolean", "title": "Build at Origin (ignore selection)", "default": false },
+            "fallback_plane": { "type": "string", "title": "Default Plane", "default": "XY", "enum": ["XY", "XZ", "YZ"] },
+            "offset_x_mm": { "type": "number", "title": "Offset X (mm)", "default": 0.0 },
+            "offset_y_mm": { "type": "number", "title": "Offset Y (mm)", "default": 0.0 },
+            "offset_z_mm": { "type": "number", "title": "Offset Z (mm)", "default": 0.0 }
+          },
+          "required": ["teeth", "module_mm"]
+        }
+      }
+    ],
+    "commands": [
+      "selection.get",
+      "sketch.inspect",
+      "document.inspect",
+      "sketch.create",
+      "sketch.line",
+      "sketch.circle.center",
+      "sketch.finish",
+      "solid.extrude"
+    ],
+    "limits": {
+      "fuel": 100000000,
+      "memory_mib": 64,
+      "deadline_ms": 5000
+    }
+  }
+}
