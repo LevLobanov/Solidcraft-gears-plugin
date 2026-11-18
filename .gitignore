@@ -2,3 +2,7 @@
 plugin_system_docs
 custom-gears.zip
 .github/workflows/release.yaml
+
+# not ready for now
+/src/gears/helical.rs
+/src/gears/double_helical.rs

@@ -1,6 +1,6 @@
 use crate::craft::plugin::commands;
 use crate::craft::plugin::types::{CommandFailure, PluginError};
-use crate::geometry::Pt2;
+use crate::gears::iso::{IsoGearDimensions, Pt2};
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
@@ -57,28 +57,20 @@ fn normalize(v: [f64; 3]) -> Option<[f64; 3]> {
     }
 }
 
-/// Строит правый ортонормированный базис (x_dir, y_dir) по внешней нормали грани `n`
-/// так, чтобы локальная ось Y смотрела максимально вверх (+Z), не отражая X/Y зеркально.
 fn basis_from_normal(n: [f64; 3]) -> ([f64; 3], [f64; 3]) {
     let Some(z) = normalize(n) else {
         return ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     };
-
-    // Для вертикальных/наклонных боковых граней стремимся направить Y вдоль +Z,
-    // для горизонтальных (верх/низ) — вдоль +Y.
     let ref_y = if z[2].abs() < 0.9 {
         [0.0, 0.0, 1.0]
     } else {
         [0.0, 1.0, 0.0]
     };
-
-    // x = normalize(ref_y × z), y = z × x -> гарантирует правую тройку (x × y = z) и Y вверх
     let x = normalize(cross(ref_y, z)).unwrap_or([1.0, 0.0, 0.0]);
     let y = normalize(cross(z, x)).unwrap_or([0.0, 1.0, 0.0]);
     (x, y)
 }
 
-/// Проецирует 3D-точку `pt` на плоскость, заданную точкой `plane_pt` и нормалью `normal`
 fn project_point_onto_plane(pt: [f64; 3], plane_pt: [f64; 3], normal: [f64; 3]) -> [f64; 3] {
     let Some(n) = normalize(normal) else {
         return pt;
@@ -126,10 +118,8 @@ fn extract_frame_object(obj: &Value) -> Option<PlacementFrame> {
         .or_else(|| parse_vec3(obj.get("v_dir")))
         .or_else(|| parse_vec3(obj.get("y")));
 
-    if let (Some(x_raw), Some(y_raw)) = (x_opt, y_opt) {
-        if let (Some(x_dir), Some(y_dir)) = (normalize(x_raw), normalize(y_raw)) {
-            return Some(PlacementFrame { origin, x_dir, y_dir });
-        }
+    if let (Some(x_raw), Some(y_raw)) = (x_opt, y_opt) && let (Some(x_dir), Some(y_dir)) = (normalize(x_raw), normalize(y_raw)) {
+        return Some(PlacementFrame { origin, x_dir, y_dir });
     }
 
     let n_opt = parse_vec3(obj.get("normal"))
@@ -141,7 +131,6 @@ fn extract_frame_object(obj: &Value) -> Option<PlacementFrame> {
         let (x_dir, y_dir) = basis_from_normal(normal);
         return Some(PlacementFrame { origin, x_dir, y_dir });
     }
-
     None
 }
 
@@ -155,7 +144,6 @@ fn frame_from_sketch_info(info: &Value) -> Option<PlacementFrame> {
     extract_frame_object(info)
 }
 
-/// Генерирует гарантированно уникальное базовое имя, проверяя существующие объекты документа
 fn next_unique_name(base: &str) -> String {
     let Ok(doc) = exec(
         "document.inspect",
@@ -202,7 +190,6 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
         return None;
     }
 
-    // 1. Выделена точка на эскизе (`sketch_point` / `sketch_midpoint`)
     if let Some(sp) = items.iter().find(|it| {
         matches!(
             it.get("kind").or_else(|| it.get("type")).and_then(Value::as_str),
@@ -218,8 +205,6 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
 
         let base = frame_from_sketch_info(&sk_info).unwrap_or_else(|| default_frame(fallback_plane));
 
-        // Если selection.get уже вернул мировые 3D-координаты точки — используем их напрямую,
-        // иначе переводим 2D-координаты [u, v] эскиза в мировые через базис эскиза
         let world_origin = if let Some(w3) = parse_vec3(sp.get("world_position"))
             .or_else(|| parse_vec3(sp.get("world")))
             .or_else(|| parse_vec3(sp.get("position")))
@@ -241,7 +226,6 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
         });
     }
 
-    // 2. Разбираем выделенные 3D-точки, плоские грани и конструкционные плоскости
     let mut point_3d: Option<[f64; 3]> = None;
     let mut face_pick_point: Option<[f64; 3]> = None;
     let mut plane_origin: Option<[f64; 3]> = None;
@@ -262,16 +246,12 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
                     .or_else(|| parse_vec3(it.get("at")));
             }
             "face" => {
-                if let Some(surf) = it.get("surface") {
-                    if surf.get("type").and_then(Value::as_str) == Some("plane") {
-                        plane_normal = parse_vec3(surf.get("normal"));
-                        // Точка клика на грани (`it.point`) имеет приоритет над `surf.point` (началом плоскости)
-                        face_pick_point = parse_vec3(it.get("point"))
-                            .or_else(|| parse_vec3(it.get("centroid")));
-                        plane_origin = face_pick_point
-                            .or_else(|| parse_vec3(surf.get("point")))
-                            .or_else(|| parse_vec3(surf.get("origin")));
-                    }
+                if let Some(surf) = it.get("surface") && surf.get("type").and_then(Value::as_str) == Some("plane") {
+                    plane_normal = parse_vec3(surf.get("normal"));
+                    face_pick_point = parse_vec3(it.get("point"))
+                        .or_else(|| parse_vec3(it.get("centroid")));
+                    plane_origin = face_pick_point
+                        .or_else(|| parse_vec3(surf.get("point")))
                 }
             }
             "plane" => {
@@ -292,7 +272,6 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
         }
     }
 
-    // Если выбрана точка и грань/плоскость — ставим центр в эту точку (спроектированную на плоскость)
     if let Some(pt) = point_3d {
         if let Some(n) = plane_normal {
             let projected = if let Some(p0) = plane_origin {
@@ -316,7 +295,6 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
         return Some(df);
     }
 
-    // Если выбрана только плоская грань или плоскость — ставим центр в точку клика на грани
     if let Some(n) = plane_normal {
         let (x_dir, y_dir) = basis_from_normal(n);
         return Some(PlacementFrame {
@@ -329,18 +307,14 @@ fn detect_from_selection(fallback_plane: &str) -> Option<PlacementFrame> {
     explicit_frame
 }
 
-pub fn create_gear(
-    base_name: &str,
+fn draw_gear_sketch(
+    sketch_name: &str,
     frame: &PlacementFrame,
     contour: &[Pt2],
-    extrude: bool,
-    thickness_mm: f64,
     bore_diameter_mm: f64,
-) -> Result<String, PluginError> {
-    let unique_name = next_unique_name(base_name);
-    let sketch_name = format!("{unique_name}_Sketch");
-
-    // 1. Создаем эскиз прямо в текущем активном компоненте
+    dims: &IsoGearDimensions,
+    include_base_circle: bool,
+) -> Result<(), PluginError> {
     exec(
         "sketch.create",
         json!({
@@ -353,7 +327,6 @@ pub fn create_gear(
         }),
     )?;
 
-    // 2. Рисуем зубчатый контур
     exec(
         "sketch.line",
         json!({
@@ -363,7 +336,6 @@ pub fn create_gear(
         }),
     )?;
 
-    // 3. Добавляем центральное отверстие (если нужно)
     if bore_diameter_mm > 0.0 {
         exec(
             "sketch.circle.center",
@@ -375,10 +347,66 @@ pub fn create_gear(
         )?;
     }
 
-    // 4. Завершаем эскиз
-    exec("sketch.finish", json!({}))?;
+    // Центральная точка шестерни
+    exec(
+        "sketch.point",
+        json!({
+            "point": [0.0, 0.0],
+            "connect": false
+        }),
+    )?;
 
-    // 5. Выдавливаем как обычное тело (Body) в текущем компоненте
+    // Вспомогательные окружности (da, d, df и db для эвольвенты)
+    let mut ref_diameters = vec![
+        dims.addendum_radius * 2.0,
+        dims.pitch_radius * 2.0,
+        dims.root_radius * 2.0,
+    ];
+    if include_base_circle {
+        ref_diameters.push(dims.base_radius * 2.0);
+    }
+
+    for dia in ref_diameters {
+        if dia > 0.05 {
+            exec(
+                "sketch.circle.center",
+                json!({
+                    "center": [0.0, 0.0],
+                    "diameter": dia,
+                    "construction": true,
+                    "connect": false
+                }),
+            )?;
+        }
+    }
+
+    exec("sketch.finish", json!({}))?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_extruded_gear(
+    base_name: &str,
+    frame: &PlacementFrame,
+    dims: &IsoGearDimensions,
+    contour: &[Pt2],
+    extrude: bool,
+    thickness_mm: f64,
+    bore_diameter_mm: f64,
+    include_base_circle: bool,
+) -> Result<String, PluginError> {
+    let unique_name = next_unique_name(base_name);
+    let sketch_name = format!("{unique_name}_Sketch");
+
+    draw_gear_sketch(
+        &sketch_name,
+        frame,
+        contour,
+        bore_diameter_mm,
+        dims,
+        include_base_circle,
+    )?;
+
     if extrude {
         exec(
             "solid.extrude",
