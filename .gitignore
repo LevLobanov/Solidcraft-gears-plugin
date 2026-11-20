@@ -1,7 +1,7 @@
 /target
 plugin_system_docs
 custom-gears.zip
-.github/workflows/release.yaml
+# .github/workflows/release.yaml
 
 # not ready for now
 /src/gears/helical.rs

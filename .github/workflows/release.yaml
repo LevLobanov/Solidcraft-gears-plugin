@@ -1,0 +1,96 @@
+name: Build, Test & Release SolidCraft Plugin
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+
+env:
+  PLUGIN_ID: custom-gears
+  CRATE_LIB_NAME: solidcraft_gear_plugin
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: rust:1.88-slim
+
+    steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y --no-install-recommends zip jq ca-certificates
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Rust unit & mocked CAD backend tests
+        run: cargo test --release
+
+      - name: Add wasm32-unknown-unknown target & install wasm-tools
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-tools --locked
+
+      - name: Build Wasm Component
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          mkdir -p dist/${PLUGIN_ID}/icons
+          wasm-tools component embed wit/ \
+            target/wasm32-unknown-unknown/release/${CRATE_LIB_NAME}.wasm \
+            -o target/embedded.wasm
+          wasm-tools component new target/embedded.wasm \
+            -o dist/${PLUGIN_ID}/plugin.wasm
+          cp plugin.json dist/${PLUGIN_ID}/
+          cp icons/gear.svg dist/${PLUGIN_ID}/icons/
+
+      - name: Verify Component WIT, Manifest Size & Icon Contract (SolidCraft 0.45)
+        run: |
+          WIT_OUT=$(wasm-tools component wit dist/${PLUGIN_ID}/plugin.wasm)
+          echo "$WIT_OUT"
+          if echo "$WIT_OUT" | grep -q "wasi:"; then
+            echo "ERROR: Component contains forbidden wasi:* imports!"
+            exit 1
+          fi
+          if ! echo "$WIT_OUT" | grep -q "export craft:plugin/entry@0.1.0"; then
+            echo "ERROR: Component does not export craft:plugin/entry@0.1.0!"
+            exit 1
+          fi
+
+          MANIFEST_BYTES=$(wc -c < dist/${PLUGIN_ID}/plugin.json)
+          if [ "$MANIFEST_BYTES" -gt 16384 ]; then
+            echo "ERROR: plugin.json exceeds 16 KiB limit ($MANIFEST_BYTES bytes)"
+            exit 1
+          fi
+
+          MANIFEST_ID=$(jq -r '.id' dist/${PLUGIN_ID}/plugin.json)
+          if [ "$MANIFEST_ID" != "${PLUGIN_ID}" ]; then
+            echo "ERROR: manifest.id ($MANIFEST_ID) != folder name (${PLUGIN_ID})"
+            exit 1
+          fi
+
+          test -f dist/${PLUGIN_ID}/icons/gear.svg
+          if grep -qE "<(text|style|script|image)" dist/${PLUGIN_ID}/icons/gear.svg; then
+            echo "ERROR: icons/gear.svg violates SolidCraft icon SVG subset!"
+            exit 1
+          fi
+
+      - name: Package plugin zip
+        run: |
+          VERSION=${GITHUB_REF_NAME:-dev}
+          cd dist
+          zip -r "${PLUGIN_ID}-${VERSION}.zip" "${PLUGIN_ID}/"
+
+      - name: Upload build artifact
+        if: ${{ !env.ACT }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${PLUGIN_ID}-package
+          path: dist/${PLUGIN_ID}-*.zip
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${PLUGIN_ID}-${{ github.ref_name }}.zip
+          generate_release_notes: true
