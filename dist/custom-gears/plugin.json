@@ -1,66 +1,48 @@
 {
   "id": "custom-gears",
-  "name": "Gear Generator (ISO)",
-  "version": "0.6.0",
-  "description": "ISO 53/54/21771 Standard and Involute Spur gear generator: d = m*Z, da = d + 2*m*(1+x), df = d - 2*m*(1.25-x).",
+  "name": "Gear",
+  "version": "0.7.0",
+  "description": "ISO 53/54/21771 Gear Generator (d = m*Z, da = d + 2*m*(1+x), df = d - 2*m*(1.25-x)).",
   "capabilities": ["commands@0.1"],
   "runtime": {
     "module": "plugin.wasm",
     "entries": [
       {
-        "name": "standard-gear",
+        "name": "gear",
         "effect": "edit",
-        "slots": [{ "kind": "menu", "name": "Standard gear" }],
+        "slots": [{ "kind": "ribbon", "name": "Gear" }],
         "input_schema": {
           "type": "object",
+          "additionalProperties": false,
+          "x-solidcraft-icon": "icons/gear.svg",
           "properties": {
-            "teeth": { "type": "integer", "title": "Teeth Z (d = m * Z)", "default": 20, "minimum": 4, "maximum": 200 },
+            "gear_type": {
+              "type": "string",
+              "title": "Gear Type (spur = ISO Involute, standard = Trapezoidal)",
+              "default": "spur",
+              "enum": ["spur", "standard"]
+            },
+            "teeth": { "type": "integer", "title": "Teeth Z (d = m * Z)", "default": 24, "minimum": 4, "maximum": 200 },
             "iso_module": {
               "type": "string",
               "title": "ISO 54 Module m (mm)",
               "default": "2.0",
               "enum": ["0.5", "0.6", "0.8", "1.0", "1.25", "1.5", "2.0", "2.5", "3.0", "4.0", "5.0", "6.0", "8.0", "10.0", "12.0", "16.0", "20.0"]
             },
+            "pressure_angle_deg": { "type": "number", "title": "ISO 53 Pressure Angle alpha (deg)", "default": 20.0, "minimum": 14.5, "maximum": 30.0 },
+            "profile_shift": { "type": "number", "title": "Profile Shift x (Spur)", "default": 0.0, "minimum": -0.5, "maximum": 1.0 },
+            "backlash_mm": { "type": "number", "title": "Backlash (mm, Spur)", "default": 0.04, "minimum": 0.0 },
+            "precision": { "type": "string", "title": "Curve Precision (Spur)", "default": "medium", "enum": ["low", "medium", "high", "ultra"] },
             "extrude": { "type": "boolean", "title": "Extrude to 3D", "default": true },
             "thickness_mm": { "type": "number", "title": "Facewidth b (mm)", "default": 10.0, "minimum": 0.1 },
-            "bore_diameter_mm": { "type": "number", "title": "Bore Diameter (< df = d - 2.5*m)", "default": 8.0, "minimum": 0.0 },
+            "bore_diameter_mm": { "type": "number", "title": "Bore Diameter (< df, mm)", "default": 8.0, "minimum": 0.0 },
             "force_origin": { "type": "boolean", "title": "Build at Origin [0,0,0]", "default": false },
             "fallback_plane": { "type": "string", "title": "Default Plane", "default": "XY", "enum": ["XY", "XZ", "YZ"] },
             "offset_x_mm": { "type": "number", "title": "Offset X (mm)", "default": 0.0 },
             "offset_y_mm": { "type": "number", "title": "Offset Y (mm)", "default": 0.0 },
             "offset_z_mm": { "type": "number", "title": "Offset Z (mm)", "default": 0.0 }
           },
-          "required": ["teeth", "iso_module"]
-        }
-      },
-      {
-        "name": "spur-gear",
-        "effect": "edit",
-        "slots": [{ "kind": "menu", "name": "Spur gear" }],
-        "input_schema": {
-          "type": "object",
-          "properties": {
-            "teeth": { "type": "integer", "title": "Teeth Z (d = m * Z)", "default": 24, "minimum": 6, "maximum": 200 },
-            "iso_module": {
-              "type": "string",
-              "title": "ISO 54 Module m (mm)",
-              "default": "2.0",
-              "enum": ["0.5", "0.6", "0.8", "1.0", "1.25", "1.5", "2.0", "2.5", "3.0", "4.0", "5.0", "6.0", "8.0", "10.0", "12.0", "16.0", "20.0"]
-            },
-            "pressure_angle_deg": { "type": "number", "title": "ISO 53 Angle alpha (deg, db = d*cos(a))", "default": 20.0, "minimum": 14.5, "maximum": 30.0 },
-            "profile_shift": { "type": "number", "title": "Profile Shift x (da = d + 2m(1+x))", "default": 0.0, "minimum": -0.5, "maximum": 1.0 },
-            "extrude": { "type": "boolean", "title": "Extrude to 3D", "default": true },
-            "thickness_mm": { "type": "number", "title": "Facewidth b (mm)", "default": 10.0, "minimum": 0.1 },
-            "bore_diameter_mm": { "type": "number", "title": "Bore Diameter (mm)", "default": 8.0, "minimum": 0.0 },
-            "backlash_mm": { "type": "number", "title": "Backlash (mm)", "default": 0.04, "minimum": 0.0 },
-            "precision": { "type": "string", "title": "Precision", "default": "medium", "enum": ["low", "medium", "high", "ultra"] },
-            "force_origin": { "type": "boolean", "title": "Build at Origin [0,0,0]", "default": false },
-            "fallback_plane": { "type": "string", "title": "Default Plane", "default": "XY", "enum": ["XY", "XZ", "YZ"] },
-            "offset_x_mm": { "type": "number", "title": "Offset X (mm)", "default": 0.0 },
-            "offset_y_mm": { "type": "number", "title": "Offset Y (mm)", "default": 0.0 },
-            "offset_z_mm": { "type": "number", "title": "Offset Z (mm)", "default": 0.0 }
-          },
-          "required": ["teeth", "iso_module"]
+          "required": ["gear_type", "teeth", "iso_module"]
         }
       }
     ],
