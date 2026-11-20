@@ -13,6 +13,8 @@ env:
 
 jobs:
   build-and-test:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     container:
       image: rust:1.88-slim
